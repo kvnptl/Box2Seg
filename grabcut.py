@@ -31,50 +31,57 @@ rect_over = False       # flag to check if rect drawn
 rect_or_mask = 100      # flag for selecting rect or mask mode
 value = DRAW_FG         # drawing initialized to FG
 thickness = 3           # brush thickness
+spacebar = False
 
 def onmouse(event,x,y,flags,param):
-    global img,orig2,drawing,value,mask,rectangle,rect,rect_or_mask,ix,iy,rect_over
+    global img,orig2,drawing,value,mask,rectangle,rect,rect_or_mask,ix,iy,rect_over, spacebar
 
-    # Draw Rectangle
-    if event == cv2.EVENT_LBUTTONDOWN:
-        rectangle = True
-        ix,iy = x,y
+    if spacebar == False:
+        # Draw Rectangle
+        if event == cv2.EVENT_LBUTTONDOWN:
+            rectangle = True
+            ix,iy = x,y
 
-    elif event == cv2.EVENT_MOUSEMOVE:
-        if rectangle == True:
-            img = orig2.copy()
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if rectangle == True:
+                img = orig2.copy()
+                cv2.rectangle(img,(ix,iy),(x,y),BLUE,2)
+                rect = (min(ix,x),min(iy,y),abs(ix-x),abs(iy-y))
+                rect_or_mask = 0
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            rectangle = False
+            rect_over = True
             cv2.rectangle(img,(ix,iy),(x,y),BLUE,2)
             rect = (min(ix,x),min(iy,y),abs(ix-x),abs(iy-y))
             rect_or_mask = 0
+            # print(" Now press the key 'n' a few times until no further change \n")
+            print(" Press spacebar to start segmentation \n")
+    else:
+        pass
 
-    elif event == cv2.EVENT_LBUTTONUP:
-        rectangle = False
-        rect_over = True
-        cv2.rectangle(img,(ix,iy),(x,y),BLUE,2)
-        rect = (min(ix,x),min(iy,y),abs(ix-x),abs(iy-y))
-        rect_or_mask = 0
-        # print(" Now press the key 'n' a few times until no further change \n")
-        print(" Press spacebar to start segmentation \n")
+    if spacebar == True:
+        # draw touchup curves
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if rect_over == False:
+                print("first draw rectangle \n")
+            else:
+                drawing = True
+                cv2.circle(img,(x,y),thickness,value['color'],-1)
+                cv2.circle(mask,(x,y),thickness,value['val'],-1)
 
-    # draw touchup curves
-    # if event == cv2.EVENT_RBUTTONDOWN:
-    #     if rect_over == False:
-    #         print("first draw rectangle \n")
-    #     else:
-    #         drawing = True
-    #         cv2.circle(img,(x,y),thickness,value['color'],-1)
-    #         cv2.circle(mask,(x,y),thickness,value['val'],-1)
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if drawing == True:
+                cv2.circle(img,(x,y),thickness,value['color'],-1)
+                cv2.circle(mask,(x,y),thickness,value['val'],-1)
 
-    # elif event == cv2.EVENT_MOUSEMOVE:
-    #     if drawing == True:
-    #         cv2.circle(img,(x,y),thickness,value['color'],-1)
-    #         cv2.circle(mask,(x,y),thickness,value['val'],-1)
-
-    # elif event == cv2.EVENT_RBUTTONUP:
-    #     if drawing == True:
-    #         drawing = False
-    #         cv2.circle(img,(x,y),thickness,value['color'],-1)
-    #         cv2.circle(mask,(x,y),thickness,value['val'],-1)
+        elif event == cv2.EVENT_LBUTTONUP:
+            if drawing == True:
+                drawing = False
+                cv2.circle(img,(x,y),thickness,value['color'],-1)
+                cv2.circle(mask,(x,y),thickness,value['val'],-1)
+    else:
+        pass
 
 if __name__ == '__main__':
 
@@ -88,22 +95,23 @@ if __name__ == '__main__':
         print("No input image given")
         print("Correct Usage: python grabcut.py <filename>")
         print("Taking default image \n")
-        filename = 'images/spiderman.jpg'
+        filename = 'images/elephant.jpg'
 
     img = cv2.imread(filename)
     orig = img.copy()
     orig2 = img.copy()                               # a copy of original image
     orig3 = img.copy()
+    result_img_orig = img.copy()
+    result_img = img.copy()
+    blended_image = img.copy()    # output image to be shown
+    
     info = np.ones((img.shape[0],230,3),np.uint8) * 255
-    result_img_orig = img.copy() 
-    result_img = result_img_orig.copy() 
     mask = np.zeros(img.shape[:2],dtype = np.uint8) # mask initialized to PR_BG
     output = np.zeros(img.shape,np.uint8)           # output image to be shown
-    blended_image = img.copy()    # output image to be shown
 
     # input and output windows
-    cv2.namedWindow('output')
-    cv2.setMouseCallback('output',onmouse)
+    cv2.namedWindow('Output')
+    cv2.setMouseCallback('Output',onmouse)
 
     print(" Instructions: \n")
     print(" Draw a rectangle around the object using left mouse button \n")
@@ -117,7 +125,6 @@ if __name__ == '__main__':
 
     # Set the position of the text
     position = (45,25)
-
     # Write the text on the image
     cv2.putText(info, 'Annotate', position, font, scale, color, thickness, cv2.LINE_AA)
 
@@ -128,28 +135,28 @@ if __name__ == '__main__':
     # Write the text on the image
     cv2.putText(info, 'Draw bounding box', position, font, 0.5, (0,0,0), 1, cv2.LINE_AA)
 
-    x, y = 10, 100
-    # Copy the small image onto the large image
-    info[y:y+45, x:x+40] = right_mouse
+    position = (25,125)
+    cv2.putText(info, 'R - reset', position, font, 0.5, (0,0,0), 1, cv2.LINE_AA)
 
-    position = (45,135)
-    # Write the text on the image
-    cv2.putText(info, 'Fine tune - select BG', position, font, 0.5, (0,0,0), 1, cv2.LINE_AA)
-
-    cv2.putText(info, 'R - reset', (25,175), font, 0.5, (0,0,0), 1, cv2.LINE_AA)
-
-    position = (25,195)
+    position = (25,150)
     # Write the text on the image
     cv2.putText(info, 'S - save annotation', position, font, 0.5, (0,0,0), 1, cv2.LINE_AA)
 
-    position = (25,215)
+    position = (25,175)
     # Write the text on the image
     cv2.putText(info, 'Spacebar - segment', position, font, 0.5, (0,0,0), 1, cv2.LINE_AA)
 
+    x, y = 10, 195
+    # Copy the small image onto the large image
+    info[y:y+45, x:x+40] = left_mouse
+    position = (45, 225)
+    # Write the text on the image
+    cv2.putText(info, 'Fine tune - select BG', position,
+                font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
     while(1):
 
-        cv2.imshow('output',output)
-        #cv2.imshow('input',img)
+        cv2.imshow('Output',output)
         k = cv2.waitKey(1)
 
         # key bindings
@@ -182,6 +189,8 @@ if __name__ == '__main__':
             mask = np.zeros(img.shape[:2],dtype = np.uint8) # mask initialized to PR_BG
             output = np.zeros(img.shape,np.uint8)           # output image to be shown
         elif k == 32: # 32 is spacebar # segment the image
+
+            spacebar = True
             
             alpha = 1.5 # Contrast control (1.0-3.0)
             beta = 0 # Brightness control (0-100)
@@ -197,8 +206,12 @@ if __name__ == '__main__':
                 bgdmodel = np.zeros((1,65),np.float64)
                 fgdmodel = np.zeros((1,65),np.float64) 
                 cv2.grabCut(orig2,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_MASK)
-            print(""" For finer touchups, mark foreground and background 
-                    after pressing keys 0-3 and again press 'n' \n""")
+            print("For finer touchups:")
+            print("Press 0 to draw background regions")
+            print("Press 1 to draw foreground regions")
+            print("Press 2 to draw probable background regions")
+            print("Press 3 to draw probable foreground regions \n")
+                      
             
 
         mask2 = np.where((mask==1) + (mask==3),255,0).astype('uint8')
@@ -214,7 +227,7 @@ if __name__ == '__main__':
 
         if len(contours) > 0:
             c = max(contours, key = cv2.contourArea)
-            contour_points = cv2.approxPolyDP(c, 0.5, True)
+            contour_points = cv2.approxPolyDP(c, 0.1, True)
             contour_points = np.array(contour_points)
             # np.save('contour_points1.npy', contour_points)
             img_temp = orig.copy()
@@ -229,8 +242,8 @@ if __name__ == '__main__':
                     cv2.circle(blended_image, (point[0][0], point[0][1]), 1, (0, 0, 255), 1)
                     fh.write('{} {}\n'.format(point[0][0], point[0][1]))
         
-        #output = np.hstack((img, output,blended_image, info))
-        output = np.hstack((img,blended_image, info))
+        # output = np.hstack((img, blended_image, info))
+        output = np.hstack((img, info))
         
         # Print the points for each contour
         # Approximate the contours with a set of points
