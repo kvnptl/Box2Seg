@@ -5,7 +5,6 @@ import sys
 import json
 import os
 
-
 import pdb
 
 BLUE = [255,0,0]        # rectangle color
@@ -34,21 +33,21 @@ value = DRAW_FG         # drawing initialized to FG
 thickness = 3           # brush thickness
 
 def onmouse(event,x,y,flags,param):
-    global img,img2,drawing,value,mask,rectangle,rect,rect_or_mask,ix,iy,rect_over
+    global img,orig2,drawing,value,mask,rectangle,rect,rect_or_mask,ix,iy,rect_over
 
     # Draw Rectangle
-    if event == cv2.EVENT_RBUTTONDOWN:
+    if event == cv2.EVENT_LBUTTONDOWN:
         rectangle = True
         ix,iy = x,y
 
     elif event == cv2.EVENT_MOUSEMOVE:
         if rectangle == True:
-            img = img2.copy()
+            img = orig2.copy()
             cv2.rectangle(img,(ix,iy),(x,y),BLUE,2)
             rect = (min(ix,x),min(iy,y),abs(ix-x),abs(iy-y))
             rect_or_mask = 0
 
-    elif event == cv2.EVENT_RBUTTONUP:
+    elif event == cv2.EVENT_LBUTTONUP:
         rectangle = False
         rect_over = True
         cv2.rectangle(img,(ix,iy),(x,y),BLUE,2)
@@ -57,8 +56,7 @@ def onmouse(event,x,y,flags,param):
         print(" Now press the key 'n' a few times until no further change \n")
 
     # draw touchup curves
-
-    if event == cv2.EVENT_LBUTTONDOWN:
+    if event == cv2.EVENT_RBUTTONDOWN:
         if rect_over == False:
             print("first draw rectangle \n")
         else:
@@ -71,7 +69,7 @@ def onmouse(event,x,y,flags,param):
             cv2.circle(img,(x,y),thickness,value['color'],-1)
             cv2.circle(mask,(x,y),thickness,value['val'],-1)
 
-    elif event == cv2.EVENT_LBUTTONUP:
+    elif event == cv2.EVENT_RBUTTONUP:
         if drawing == True:
             drawing = False
             cv2.circle(img,(x,y),thickness,value['color'],-1)
@@ -80,20 +78,21 @@ def onmouse(event,x,y,flags,param):
 if __name__ == '__main__':
 
     # print documentation
-    print(__doc__)
+    # print(__doc__)
 
     # Loading images
     if len(sys.argv) == 2:
         filename = sys.argv[1] # for drawing purposes
     else:
-        print("No input image given, so loading default image, ../data/lena.jpg \n")
-        print("Correct Usage: python grabcut.py <filename> \n")
-        #filename = r'C:\cv_projects\Images for test\hen\110.jpeg'
+        print("No input image given")
+        print("Correct Usage: python grabcut.py <filename>")
+        print("Taking default image \n")
+        filename = 'images/spiderman.jpg'
 
     img = cv2.imread(filename)
     orig = img.copy()
-    img2 = img.copy()                               # a copy of original image
-    contr = img.copy()
+    orig2 = img.copy()                               # a copy of original image
+    orig3 = img.copy()
     info = np.ones((img.shape[0],230,3),np.uint8) * 255
     result_img_orig = img.copy() 
     result_img = result_img_orig.copy() 
@@ -101,12 +100,9 @@ if __name__ == '__main__':
     output = np.zeros(img.shape,np.uint8)           # output image to be shown
     blended_image = img.copy()    # output image to be shown
 
-    
-
     # input and output windows
     cv2.namedWindow('output')
     cv2.setMouseCallback('output',onmouse)
-    #cv2.moveWindow('output',img.shape[1]+10,90)
 
     print(" Instructions: \n")
     print(" Draw a rectangle around the object using right mouse button \n")
@@ -177,7 +173,7 @@ if __name__ == '__main__':
             rect_or_mask = 100
             rect_over = False
             value = DRAW_FG
-            img = img2.copy()
+            img = orig2.copy()
             mask = np.zeros(img.shape[:2],dtype = np.uint8) # mask initialized to PR_BG
             output = np.zeros(img.shape,np.uint8)           # output image to be shown
         elif k == 32: # segment the image
@@ -186,39 +182,27 @@ if __name__ == '__main__':
             alpha = 1.5 # Contrast control (1.0-3.0)
             beta = 0 # Brightness control (0-100)
 
-            #img2 = cv2.convertScaleAbs(img2, alpha=alpha, beta=beta)
             if (rect_or_mask == 0):         # grabcut with rect
                 bgdmodel = np.zeros((1,65),np.float64)
                 fgdmodel = np.zeros((1,65),np.float64)
-                cv2.grabCut(img2,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_RECT)
+                cv2.grabCut(orig2,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_RECT)
                 rect_or_mask = 1
                 result = cv2.imread(filename)
             elif rect_or_mask == 1:         # grabcut with mask
                 bgdmodel = np.zeros((1,65),np.float64)
                 fgdmodel = np.zeros((1,65),np.float64) 
-                cv2.grabCut(img2,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_MASK)
-        
-                
-
+                cv2.grabCut(orig2,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_MASK)
 
         mask2 = np.where((mask==1) + (mask==3),255,0).astype('uint8')
-        output = cv2.bitwise_and(img2,img2,mask=mask2)
+        output = cv2.bitwise_and(orig2,orig2,mask=mask2)
         img_gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
         #ret, thresh = cv2.threshold(img_gray, 150, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(image=img_gray, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
         cv2.drawContours(image=result_img, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=cv2.FILLED, lineType=cv2.LINE_AA)
 
         alpha = 0.5
-        result = cv2.addWeighted(result_img, 1-alpha, contr, alpha, 0)
+        result = cv2.addWeighted(result_img, 1-alpha, orig3, alpha, 0)
         cv2.drawContours(image=result, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
-
-
-
-        
-  
-        
-
-        
 
         if len(contours) > 0:
             c = max(contours, key = cv2.contourArea)
@@ -246,15 +230,12 @@ if __name__ == '__main__':
                 for point in contour_points:
                     cv2.circle(blended_image, (point[0][0], point[0][1]), 1, (0, 0, 255), 1)
                     fh.write('{} {}\n'.format(point[0][0], point[0][1]))
-
-        
         
         #output = np.hstack((img, output,blended_image, info))
         output = np.hstack((img,blended_image, info))
-
         
         # Print the points for each contour
-    # Approximate the contours with a set of points
+        # Approximate the contours with a set of points
     
 
     cv2.destroyAllWindows()
