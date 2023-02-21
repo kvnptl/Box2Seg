@@ -14,10 +14,12 @@ Reference: https://docs.opencv.org/3.4/d8/d83/tutorial_py_grabcut.html
 '''
 
 TODO:
-1. Fine tunning circle on displayed image
+1. Fine tuning marker colors are not showing on the image 
 2. Add a feature to select multuple rectangles 
 3. Export the mask as a json file
-4. Convert the mask to COCO format 
+4. Convert the mask to COCO format
+5. Add comments to the code
+6. Start annotation with the mask instead of the rectangle
 
 '''
 
@@ -46,7 +48,9 @@ rect_over = False       # flag to check if rect drawn
 rect_or_mask = 100      # flag for selecting rect or mask mode
 value = DRAW_FG         # drawing initialized to FG
 thickness = 3           # brush thickness
-spacebar = False
+spacebar = False        # flag to start segmentation
+process_started = False   # flag to start processing
+spacebar_pressed = False # flag to check if spacebar is pressed
 
 def onmouse(event, x, y, flags,param):
     global img, blended_image, drawing, value, mask, rectangle, rect, rect_or_mask, ix, iy, rect_over, spacebar
@@ -125,8 +129,8 @@ if __name__ == '__main__':
     output = np.zeros(img.shape,np.uint8)           # output image to be shown
 
     # input and output windows
-    cv2.namedWindow('Output')
-    cv2.setMouseCallback('Output',onmouse)
+    cv2.namedWindow('Annotation Window')
+    cv2.setMouseCallback('Annotation Window',onmouse)
 
     print(" Instructions: \n")
     print(" Draw a rectangle around the object using left mouse button \n")
@@ -135,13 +139,13 @@ if __name__ == '__main__':
     scale = 1
 
     # Set the color and thickness of the text
-    color = (0, 0, 255)  # red
+    color = (0, 0, 0)  # black
     thickness = 2
 
     # Set the position of the text
     position = (45,25)
     # Write the text on the image
-    cv2.putText(info, 'Annotate', position, font, scale, color, thickness, cv2.LINE_AA)
+    cv2.putText(info, 'Instruction', position, font, scale, color, thickness, cv2.LINE_AA)
 
     x, y = 10, 45
     # Copy the small image onto the large image
@@ -171,7 +175,7 @@ if __name__ == '__main__':
 
     while(1):
 
-        cv2.imshow('Output',output)
+        cv2.imshow('Annotation Window',output)
         k = cv2.waitKey(1)
 
         # key bindings
@@ -193,39 +197,37 @@ if __name__ == '__main__':
             cv2.imwrite('grabcut_output.png',res)
             print(" Result saved as image \n")
         elif k == ord('r'): # reset everything
-            print("resetting \n")
+            print("Resetting \n")
             rect = (0,0,1,1)
             drawing = False
             rectangle = False
             rect_or_mask = 100
             rect_over = False
             value = DRAW_FG
+            spacebar = False
             blended_image = orig.copy()
             mask = np.zeros(img.shape[:2],dtype = np.uint8) # mask initialized to PR_BG
             output = np.zeros(img.shape,np.uint8)           # output image to be shown
         elif k == 32: # 32 is spacebar # segment the image
             spacebar = True
+            process_started = True
+            spacebar_pressed = True
 
             alpha = 1.5 # Contrast control (1.0-3.0)
             beta = 0 # Brightness control (0-100)
 
-            if (rect_or_mask == 0):         # grabcut with rect
+            if (rect_or_mask == 0):                     # grabcut with rectangle box
                 print("Segmentation in progress... \n")
                 bgdmodel = np.zeros((1,65),np.float64)
                 fgdmodel = np.zeros((1,65),np.float64)
                 cv2.grabCut(orig,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_RECT)
                 rect_or_mask = 1
                 result = cv2.imread(filename)
-            elif rect_or_mask == 1:         # grabcut with mask
+            elif rect_or_mask == 1:                     # grabcut with mask
+                print("Fine tuning in progress... \n")
                 bgdmodel = np.zeros((1,65),np.float64)
                 fgdmodel = np.zeros((1,65),np.float64) 
                 cv2.grabCut(orig,mask,rect,bgdmodel,fgdmodel,20,cv2.GC_INIT_WITH_MASK)
-            
-            print("For finer touchups:")
-            print("Press 0 to draw background regions")
-            print("Press 1 to draw foreground regions")
-            print("Press 2 to draw probable background regions")
-            print("Press 3 to draw probable foreground regions \n")
                              
 
         mask2 = np.where((mask==1) + (mask==3),255,0).astype('uint8')
@@ -240,6 +242,15 @@ if __name__ == '__main__':
         cv2.drawContours(image=result, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
 
         if len(contours) > 0:
+            # Only show instructions, if something is segmented
+            if spacebar_pressed:
+                spacebar_pressed = False
+                print("For finer touchups:")
+                print("Press 0 to draw background regions")
+                print("Press 1 to draw foreground regions")
+                print("Press 2 to draw probable background regions")
+                print("Press 3 to draw probable foreground regions \n")
+
             c = max(contours, key = cv2.contourArea)
             contour_points = cv2.approxPolyDP(c, 0.01, True)
             contour_points = np.array(contour_points)
@@ -256,6 +267,18 @@ if __name__ == '__main__':
                     cv2.circle(blended_image, (point[0][0], point[0][1]), 0, (0, 0, 255), 1)
                     fh.write('{} {}\n'.format(point[0][0], point[0][1]))
         
+        # If no contours are found, then reset the image
+        elif(len(contours) == 0 and process_started == True):
+            process_started = False
+            blended_image = orig.copy()
+            output = np.hstack((blended_image, info))
+            print("Could not segment")
+            print("Try again \n")
+            print("Switched to Mask mode")
+            # spacebar = False
+            continue
+        
+        # For displaying the segmented image
         output = np.hstack((blended_image, info))
         # output = np.hstack((img, info))
 
